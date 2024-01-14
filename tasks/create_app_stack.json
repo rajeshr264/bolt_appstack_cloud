@@ -1,0 +1,18 @@
+{
+  "description": "An example task that uses the Python helper library",
+  "input_method": "stdin",
+  "parameters": {
+    "apps_stack_filename": {
+      "description": "Filename contains the applications stack specification",
+      "type": "String"
+    },
+    "generated_inventory_filename": {
+      "description": "Filename contains the generated inventory",
+      "type": "Optional[String[1]]"
+    }
+  },
+  "implementations": [
+      {"name": "create_app_stack.py", "requirements": ["shell"]}
+  ],
+  "remote" : true
+}
