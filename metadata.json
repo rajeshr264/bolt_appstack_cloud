@@ -2,11 +2,18 @@
   "name": "rajeshrpuppet-bolt_appstack_cloud",
   "version": "0.1.0",
   "author": "Rajesh Radhakrishnan",
-  "summary": "",
+  "summary": "A Bolt Module that hosts tasks and plans to deploy user defined application stacks on Private or Public clouds.",
   "license": "MIT",
-  "source": "",
+  "source": "https://github.com/rajeshr264/bolt_appstack_cloud",
   "dependencies": [
-
+    {
+      "name": "puppetlabs/facts",
+      "version_requirement": ">= 1.3.0 < 1.4.0"
+    },
+    {
+      "name": "puppetlabs/peadm",
+      "version_requirement": ">= 3.16.0 < 3.16.1"
+    }
   ],
   "operatingsystem_support": [
     {
@@ -42,7 +49,9 @@
     {
       "operatingsystem": "Ubuntu",
       "operatingsystemrelease": [
-        "18.04"
+        "18.04",
+        "20.04",
+        "22.04"
       ]
     },
     {
