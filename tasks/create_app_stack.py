@@ -69,7 +69,7 @@ def execute():
         print("Eror: proxmoxer python module not found.")
         exit(1)
 
-    #params = json.load(sys.stdin)
+    params = json.load(sys.stdin)
     # print("params : ")
     # print(params)
 
