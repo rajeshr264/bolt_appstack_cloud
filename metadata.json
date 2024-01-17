@@ -13,6 +13,10 @@
     {
       "name": "puppetlabs/peadm",
       "version_requirement": ">= 3.16.0 < 3.16.1"
+    },
+    {
+      "name": "puppetlabs/python_task_helper",
+      "version_requirement": ">= 0.4.3 < 0.5.0"
     }
   ],
   "operatingsystem_support": [
