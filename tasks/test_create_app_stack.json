@@ -1,0 +1,9 @@
+{
+    "description": "test ",
+    "input_method": "stdin",
+    "implementations": [
+        {"name": "test_create_app_stack.py", "requirements": ["shell"]}
+    ],
+    "remote": true
+}
+  

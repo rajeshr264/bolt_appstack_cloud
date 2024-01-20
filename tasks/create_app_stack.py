@@ -1,13 +1,92 @@
 #!/usr/bin/env python3
 
 import json
-import sys 
 import urllib3
 import time 
+import yaml
+import os
+import sys
+import boto3
 from paramiko import SSHClient, AutoAddPolicy
 
-# 
-generated_inventory = {}
+# ARRAY to host all the machine info
+generated_inventory = []
+
+def add_route53_dns_record(fqdn_name, ip_address):
+
+    # Retrieve AWS credentials from the environment
+    aws_access_key_id = os.environ.get('AWS_ACCESS_KEY_ID')
+    aws_secret_access_key = os.environ.get('AWS_SECRET_ACCESS_KEY')
+    aws_region_name = os.environ.get('AWS_REGION')
+    route53_host_zone_id = os.environ.get('ROUTE53_HOSTED_ZONE_ID')
+
+    if aws_secret_access_key == None or aws_secret_access_key == None or aws_region_name == None :
+        print("Error: Missing AWS Credentials environment variables")
+        exit(1)
+
+
+    # params = {
+    #     'fqdn' :  "puppetenterprise.harshamlab.site",
+    #     'ip_address': '192.168.1.125',
+    #  
+    # }
+
+    fqdn = fqdn_name.split('.')
+
+    # Replace with your hosted zone ID and domain
+    hosted_zone_id = route53_host_zone_id
+    domain_name = '.'.join(fqdn[-2:])
+
+    # Create a Route 53 client
+    route53_client = boto3.client('route53', aws_access_key_id=aws_access_key_id, aws_secret_access_key=aws_secret_access_key, region_name=aws_region_name)
+
+    # Replace with the record details you want to add
+    record_name = fqdn[0]
+    record_type = 'A'
+    ttl = 8600
+    record_value = ip_address
+
+    # Create the record set
+    change_batch = {
+        'Changes': [
+            {
+                'Action': 'UPSERT',
+                'ResourceRecordSet': {
+                    'Name': f'{record_name}.{domain_name}',
+                    'Type': record_type,
+                    'TTL': ttl,
+                    'ResourceRecords': [
+                        {
+                            'Value': record_value
+                        }
+                    ]
+                }
+            }
+        ]
+    }
+
+    # Update the record set
+    response = route53_client.change_resource_record_sets( HostedZoneId=hosted_zone_id, ChangeBatch=change_batch )
+
+    #print(f"Change submitted with status code: {response['ResponseMetadata']['HTTPStatusCode']}")
+
+
+def generate_inventory_file(inventory_filename, apps_stacks):
+    """Generate a Bolt compliant Inventory file"""
+
+    inventory_file = open(inventory_filename,'w')   
+    inventory_file.write("targets: \n")
+    for node in generated_inventory:
+        inventory_file.write("   - name: " + node['name'] + "\n")
+        inventory_file.write("     uri: " + node['uri'] + "\n")
+    
+    inventory_file.write("config: \n  ")
+    inventory_file.close()
+    # add the 'config' section
+    config_section = apps_stacks['config']
+    with open(inventory_filename,'a') as inventory_file:
+        yaml.dump(config_section, inventory_file, default_style=False, default_flow_style=False, indent=4)
+
 
 # Wait for the VM to be ready
 def wait_for_vm_ready(proxmox_node, vmid, expected_status):
@@ -57,8 +136,6 @@ def get_ip_address(params, post_data):
     ip_address   = vm_info_dict[1]['ip-addresses'][0]['ip-address']
     return ip_address 
 
-
-
 def execute():
     """Gets the list of nodes to create"""
 
@@ -78,25 +155,20 @@ def execute():
     #out_file = open("inventory_test2.json", "w") 
     #out_file.close() 
     #exit(1)
-    #with open('/home/rajesh/proxmox/bolt/bolt_appstack_cloud_work/inventory_test2.json') as f:
-    #     params = json.load(f)
-    #params['apps_stack_filename'] = '/home/rajesh/proxmox/bolt/bolt_appstack_cloud_work/apps_stack.yaml'
+    # with open('/home/rajesh/proxmox/bolt/bolt_appstack_cloud_work/inventory_test2.json') as f:
+    #      params = json.load(f)
+    # params['apps_stack_filename'] = '/home/rajesh/proxmox/bolt/bolt_appstack_cloud_work/apps_stack.yaml'
     #### FINISH 
 
     proxmox = ProxmoxAPI(params['_target']['uri'], user=params['_target']['user'], password= params['_target']['password'], verify_ssl=False)
     #print(proxmox.access.users.get()) # for debug purposes
 
     # get the apps node from inventory file
-    import yaml
     with open(params['apps_stack_filename']) as file:
-        apps_stacks_yaml = yaml.safe_load(file)
-
-    # build generated_inventory dict
-    # pre-amble: add the targets
-    generated_inventory['targets'] = []
+        apps_stacks = yaml.safe_load(file)
     
     #print(apps_stacks_yaml)
-    apps = apps_stacks_yaml['apps']
+    apps = apps_stacks['apps']
     msg =""
     proxmox_node = proxmox.nodes(params['_target']['name'])  
     for app in apps:
@@ -118,6 +190,8 @@ def execute():
                 #start the VM
                 start_vm(proxmox_node, post_data)
                 ip_address = get_ip_address(params, post_data)
+                # add DNS entry 
+                add_route53_dns_record(vm_name, ip_address)
                 msg += " with IP address: " + ip_address
                 node_info = {
                     "name" : vm_name,
@@ -125,9 +199,10 @@ def execute():
                     "vmid" : post_data['newid'],
                     "plan" : app['plan'],
                     "plan_params": app['plan_params']
-
                 }
-                generated_inventory['targets'].append(node_info)
+                
+                # build generated_inventory array
+                generated_inventory.append(node_info)
         else:
             post_data = {
                   "name": app['name'],
@@ -139,6 +214,7 @@ def execute():
             #start the VM
             start_vm(proxmox_node, post_data)
             ip_address = get_ip_address(params, post_data)
+            add_route53_dns_record(app['name'], ip_address)
             msg += " with IP address: " + ip_address
             node_info = {
                     "name" : app['name'],
@@ -147,16 +223,16 @@ def execute():
                     "plan" : app['plan'],
                     "plan_params": app['plan_params']
 
-                }
-            generated_inventory['targets'].append(node_info)
+            }
             
+            # build generated_inventory array
+            generated_inventory.append(node_info)
     
-    # post-amble. add the config section from the apps inventory file
-    generated_inventory['config'] = {}
-    for key,val in dict.items(apps_stacks_yaml['config']):
-        generated_inventory['config'][key] = val
-    
+    # generate the inventory file
+    generate_inventory_file(params['generated_inventory_filename'], apps_stacks)
+
+
 # main
-urllib3.disable_warnings() # stop https warnings
+urllib3.disable_warnings() # stop https-related warnings from Python HTTP library
 execute()
-print(generated_inventory)
+json.dump({'values': list(generated_inventory)},sys.stdout)
