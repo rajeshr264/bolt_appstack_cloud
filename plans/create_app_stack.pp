@@ -3,28 +3,40 @@ plan bolt_appstack_cloud::create_app_stack(
   String $apps_stack_filename,
   String $generated_inventory_filename
 ) {
-  # $inventory_json = run_task('bolt_appstack_cloud::create_app_stack', $targets, 'apps_stack_filename' => $apps_stack_filename,
-  # 'generated_inventory_filename' => $generated_inventory_filename)
+  #  $inventory_json = run_task('bolt_appstack_cloud::create_app_stack', $targets, 'apps_stack_filename' => $apps_stack_filename,
+  #   'generated_inventory_filename' => $generated_inventory_filename)
 
   # for debug
   $inventory_json = run_task('bolt_appstack_cloud::test_create_app_stack',$targets)
-  #out::message($inventory_json)
+  # out::message("Returned Inventory: ")
+  # out::message($inventory_json)
 
-  $inventory_json.each |$result| {
-    $node_list = $result.value['values']
-    #out::message("nodelist: ${node_list}")
-    $node_list.each |$node| {
-      $plan_params = loadjson($node['plan_params'])
+  # Bolt returns ResultSet data structure. 
+  # Use the ResultSet APIs to parse the generated inventory file and create a new TargetSpec to pass to the run_plan command
 
-      #out::message($hash)
-      #out::message("  ")
-      #out::message($node)
-      $target = TargetSpec.new($node["name"])
-      $plan_name = String.new($node['plan'])
+  $apps = $inventory_json.first().to_data()['value']['vms']
+  # out::message("Apps: ")
+  # out::message(stdlib::type_of($apps))
 
-      #out::message("Plan : ${plan_name} Target: ${target} Params: ${plan_params}")
+  # the last item in app list is the 'config' section
+  $config_section = $apps[-1]
+  #out::message($config_section)
 
-      run_plan($plan_name, $target, $plan_params)
+  $apps.each |$app| {
+    if $app["name"] { # 'config' section has no 'name' key
+      # create the Target
+      $target = get_target($app["name"])
+      set_config($target, 'transport', 'ssh') # hardcoded for now
+      set_config($target, 'ssh', { user => $config_section['config']['ssh']['user'], private-key => $config_section['config']['ssh']['private-key'],
+      native-ssh => true, run-as => 'root'})
+
+      out::message("Target: ")
+      out::message($target)
+      $plan_name = String.new($app['plan'])
+      out::message("Plan params: ")
+      out::message($app['plan_params'])
+
+      run_plan($plan_name, 'target' => $target, 'plan_params_filename' => $app['plan_params'])
     }
   }
 }
