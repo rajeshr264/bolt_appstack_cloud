@@ -8,6 +8,8 @@ import os
 import sys
 import boto3
 from paramiko import SSHClient, AutoAddPolicy
+from proxmoxer import ProxmoxAPI
+
 
 # ARRAY to host all the machine info
 generated_inventory = []
@@ -91,18 +93,6 @@ def generate_inventory_file(inventory_filename, apps_stacks):
     config_hash = {'config' : apps_stacks['config']}
     generated_inventory.append(config_hash)
 
-def run_dummy_ssh_connect(ip_address):
-    """Run a dummy ssh connect"""
-    client = SSHClient()
-    username = 'serveradmin'
-    client.set_missing_host_key_policy(AutoAddPolicy()) # to avoid the usual SSH known_hosts error
-    try:
-        client.connect(hostname=ip_address, username=username, password='dummy')
-    except Exception as e:
-        pass
-
-    return
-
 # Wait for the VM to be ready
 def wait_for_vm_ready(proxmox_node, vmid, expected_status):
     while True:
@@ -154,13 +144,6 @@ def get_ip_address(params, post_data):
 def execute():
     """Gets the list of nodes to create"""
 
-    try:
-        from proxmoxer import ProxmoxAPI
-        HAS_PROXMOXER = True
-    except ImportError:
-        print("Eror: proxmoxer python module not found.")
-        exit(1)
-
     params = json.load(sys.stdin)
     # print("params : ")
     # print(params)
@@ -171,8 +154,8 @@ def execute():
     #out_file = open("inventory_test2.json", "w") 
     #out_file.close() 
     #exit(1)
-    # with open('/home/rajesh/proxmox/bolt/bolt_appstack_cloud_work/inventory_test2.json') as f:
-    #        params = json.load(f)
+    #with open('/home/rajesh/proxmox/bolt/bolt_appstack_cloud_work/inventory_test2.json') as f:
+    #         params = json.load(f)
     # params['apps_stack_filename'] = '/home/rajesh/proxmox/bolt/bolt_appstack_cloud_work/apps_stack.yaml'
     #### FINISH 
 
@@ -213,12 +196,9 @@ def execute():
                 node_info = {
                     "name" : vm_name,
                     "uri"  : ip_address,
-                    "vmid" : post_data['newid'],
                     "plan" : app['plan'],
                     "plan_params": app['plan_params']
                 }
-                # hack: ssh connection doesn't work first time you connect, hence run a dummy command
-                run_dummy_ssh_connect(ip_address)
                 # build generated_inventory array
                 generated_inventory.append(node_info)
         else:
@@ -237,13 +217,10 @@ def execute():
             node_info = {
                     "name" : app['name'],
                     "uri"  : ip_address,
-                    "vmid" : post_data['newid'],
                     "plan" : app['plan'],
                     "plan_params": app['plan_params']
 
             }
-            # hack: ssh connection doesn't work first time you connect, hence run a dummy command
-            run_dummy_ssh_connect(ip_address)  
             # build generated_inventory array
             generated_inventory.append(node_info)
     

@@ -4,7 +4,7 @@ plan bolt_appstack_cloud::pe_install(
   Optional[Hash] $args = undef,
 )
 {
-  out::message("PE_Install: ")
+  #out::message("PE_Install: ")
   
   $peadm_install_plan="peadm::install"
   
@@ -13,5 +13,16 @@ plan bolt_appstack_cloud::pe_install(
   $peadm_args_hash = loadjson($plan_params_filename)
   $target_hash = {'primary_host' => $target}
   $args_hash = $peadm_args_hash + $target_hash
-  run_plan($peadm_install_plan,$args_hash )
+
+  $result_or_error = catch_errors(['bolt/run-failure']) || {
+    run_plan($peadm_install_plan,$args_hash)
+  }
+  if $result_or_error =~ Error {
+    $msg = $result_or_error.details['result_set'][0].error().message()
+    if $msg =~ 'No route to host' {
+      run_plan($peadm_install_plan,$args_hash)
+    } else {
+      fail_plan($result_or_error)
+    }
+  }
 }
