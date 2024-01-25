@@ -1,0 +1,15 @@
+{
+    "description": "Delete a Proxmox VM",
+    "input_method": "stdin",
+    "parameters": {
+      "vm_name": {
+        "description": "Name of VM to delete",
+        "type": "String"
+      }
+    },
+    "implementations": [
+        {"name": "delete_vm.py", "requirements": ["shell"]}
+    ],
+    "remote" : true
+  }
+  
